@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Whispering Depths RPG</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom font for a medieval feel */
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Roboto+Mono&display=swap');
+        
+        body {
+            font-family: 'Cinzel', serif;
+            background-color: #111827; /* Dark Slate Background */
+        }
+        #game-output {
+            height: 400px; /* Fixed height for the game log */
+            overflow-y: auto; /* Enable scrolling */
+            scroll-behavior: smooth;
+            font-family: 'Roboto Mono', monospace; /* Monospace for log text */
+            font-size: 0.9rem;
+        }
+        .text-log-entry {
+            margin-bottom: 0.25rem;
+            line-height: 1.4;
+        }
+        .stat-card {
+            border: 2px solid #6b7280; /* Gray Border */
+            background-color: #1f2937; /* Darker Card Background */
+        }
+        .action-button {
+            transition: all 0.15s;
+            box-shadow: 0 4px #b45309; /* Deep Orange Shadow */
+        }
+        .action-button:hover {
+            box-shadow: 0 2px #b45309;
+            transform: translateY(2px);
+        }
+        .action-button:disabled {
+            box-shadow: none;
+            transform: none;
+            cursor: not-allowed;
+        }
+        .text-gold {
+            color: #f59e0b; /* Amber/Gold Accent */
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        
+        <!-- Title & Header -->
+        <header class="text-center mb-8 border-b-2 border-yellow-700 pb-4">
+            <h1 class="text-5xl font-bold text-gold tracking-widest">THE WHISPERING DEPTHS</h1>
+            <p class="text-gray-400 mt-2 text-lg">A Text-Based Adventure RPG</p>
+        </header>
+
+        <!-- Main Game Container -->
+        <div id="game-container" class="grid grid-cols-1 md:grid-cols-4 gap-6">
+
+            <!-- 1. Stats & Inventory Panel (Left) -->
+            <div id="stats-panel" class="stat-card p-4 rounded-xl shadow-2xl md:col-span-1 space-y-6">
+                <h2 class="text-xl text-gold border-b pb-2 mb-4">Player Stats</h2>
+                <div id="player-stats" class="text-gray-300 text-sm space-y-2 font-mono">
+                    <!-- Player stats will be rendered here -->
+                </div>
+                
+                <h2 class="text-xl text-gold border-b pb-2 mt-6">Enemy Info</h2>
+                <div id="enemy-stats" class="text-gray-300 text-sm space-y-2 font-mono">
+                    <!-- Enemy stats will be rendered here -->
+                </div>
+            </div>
+
+            <!-- 2. Game Log Panel (Center) -->
+            <div class="stat-card p-4 rounded-xl shadow-2xl md:col-span-2">
+                <h2 class="text-xl text-gold border-b pb-2 mb-4">The Depths Whisper...</h2>
+                <div id="game-output" class="text-gray-400">
+                    <!-- Game output/log will be appended here -->
+                </div>
+            </div>
+
+            <!-- 3. Action Buttons Panel (Right) -->
+            <div class="stat-card p-4 rounded-xl shadow-2xl md:col-span-1 space-y-4 flex flex-col">
+                <h2 class="text-xl text-gold border-b pb-2 mb-4">Actions</h2>
+                <div id="action-buttons" class="space-y-4 flex flex-col flex-grow">
+                    <!-- Action buttons will be rendered here dynamically -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over Modal -->
+        <div id="game-over-modal" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+            <div class="bg-red-900 border-4 border-red-500 p-8 rounded-xl text-center shadow-2xl">
+                <h2 class="text-4xl font-bold text-white mb-4">GAME OVER</h2>
+                <p id="game-over-message" class="text-xl text-red-200 mb-6"></p>
+                <button onclick="window.location.reload()" class="action-button bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700">
+                    Restart
+                </button>
+            </div>
+        </div>
+        
+        <!-- Game Start Modal -->
+        <div id="start-modal" class="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50">
+            <div class="bg-gray-800 border-4 border-gold p-8 rounded-xl text-center shadow-2xl max-w-sm w-full">
+                <h2 class="text-4xl font-bold text-gold mb-6">Start Your Journey</h2>
+                <input type="text" id="player-name-input" placeholder="Enter Hero's Name" 
+                       class="w-full p-3 bg-gray-700 border border-gray-600 text-gray-200 rounded-lg focus:ring-yellow-500 focus:border-yellow-500 mb-6 font-mono" />
+                <button onclick="startGame()" class="action-button bg-yellow-700 text-white px-6 py-3 rounded-lg hover:bg-yellow-800 w-full">
+                    Enter the Depths
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Game Setup and Variables ---
+        const DELAY = 500; // Delay in milliseconds for combat output
+        const gameState = {
+            player: null,
+            enemy: null,
+            isCombat: false,
+        };
+
+        // DOM Elements
+        const outputLog = document.getElementById('game-output');
+        const playerStatsEl = document.getElementById('player-stats');
+        const enemyStatsEl = document.getElementById('enemy-stats');
+        const actionButtonsEl = document.getElementById('action-buttons');
+        const gameOverModal = document.getElementById('game-over-modal');
+        const startModal = document.getElementById('start-modal');
+        const playerNameInput = document.getElementById('player-name-input');
+
+        // --- Core Classes (Python Logic Translated to JS) ---
+
+        class Character {
+            constructor(name, max_hp, attack, defense) {
+                this.name = name;
+                this.max_hp = max_hp;
+                this.current_hp = max_hp;
+                this.attack = attack;
+                this.defense = defense;
+                this.is_alive = true;
+            }
+
+            takeDamage(damage) {
+                // Damage reduction based on defense (simple formula)
+                const damageTaken = Math.max(0, damage - this.defense);
+                this.current_hp -= damageTaken;
+                
+                logOutput(`[${this.name}] takes <span class="text-red-400">${damageTaken}</span> damage!`);
+                
+                if (this.current_hp <= 0) {
+                    this.current_hp = 0;
+                    this.is_alive = false;
+                    return { damageTaken, isKilled: true };
+                }
+                return { damageTaken, isKilled: false };
+            }
+
+            attackTarget(target) {
+                logOutput(`\n[${this.name}] attacks ${target.name}!`);
+                
+                // Simple random attack variation
+                const baseDamage = this.attack + Math.floor(Math.random() * 6) - 2; // -2 to +3
+                
+                const { damageTaken, isKilled } = target.takeDamage(baseDamage);
+                
+                return { damageDealt: damageTaken, isKilled };
+            }
+        }
+
+        class Player extends Character {
+            constructor(name) {
+                super(name, 30, 8, 4); // Base stats for player
+                this.level = 1;
+                this.experience = 0;
+                this.gold = 50;
+                this.potions = 3; // Healing items
+                this.next_level_exp = 15;
+            }
+
+            gainXP(amount) {
+                this.experience += amount;
+                logOutput(`You gained <span class="text-green-400">${amount} XP</span>.`);
+                while (this.experience >= this.next_level_exp) {
+                    this.levelUp();
+                }
+            }
+
+            levelUp() {
+                this.level += 1;
+                this.max_hp += 5;
+                this.attack += 2;
+                this.defense += 1;
+                this.current_hp = this.max_hp; // Full heal on level up
+                this.experience -= this.next_level_exp;
+                this.next_level_exp = Math.floor(this.next_level_exp * 1.5);
+                
+                logOutput(`\n<span class="text-gold">*** LEVEL UP! ***</span>`, 'text-xl font-bold');
+                logOutput(`You reached Level ${this.level}!`);
+                logOutput(`Max HP: +5 | Attack: +2 | Defense: +1`);
+                logOutput(`*****************`);
+            }
+
+            usePotion() {
+                if (this.potions > 0 && this.current_hp < this.max_hp) {
+                    const healAmount = Math.floor(Math.random() * 8) + 8; // 8 to 15
+                    this.current_hp = Math.min(this.max_hp, this.current_hp + healAmount);
+                    this.potions -= 1;
+                    logOutput(`\nYou used a potion! Restored <span class="text-green-400">${healAmount} HP</span>.`);
+                    logOutput(`HP: ${this.current_hp}/${this.max_hp}. Potions: ${this.potions}`);
+                    return true;
+                } else if (this.current_hp === this.max_hp) {
+                    logOutput("Your health is already full.");
+                    return false;
+                } else {
+                    logOutput("You have no potions left!");
+                    return false;
+                }
+            }
+        }
+
+        class Enemy extends Character {
+            constructor(level) {
+                const names = ["Slime", "Goblin Scout", "Giant Rat", "Feral Wolf", "Gargoyle"];
+                const name = names[Math.floor(Math.random() * names.length)];
+                
+                const baseHp = 10 + (level * 3);
+                const baseAtk = 5 + (level * 1);
+                const baseDef = 1 + (level * 0.5);
+                
+                super(name, baseHp, baseAtk, Math.floor(baseDef));
+                this.level = level;
+                this.xp_value = 5 + (level * 2);
+                this.gold_drop = Math.floor(Math.random() * (5 * level)) + 1 * level;
+            }
+        }
+
+        // --- Utility Functions ---
+
+        function logOutput(message, className = 'text-gray-400') {
+            const div = document.createElement('div');
+            div.className = `text-log-entry ${className}`;
+            div.innerHTML = message;
+            outputLog.appendChild(div);
+            // Auto-scroll to the bottom
+            outputLog.scrollTop = outputLog.scrollHeight;
+        }
+
+        function updateUI() {
+            const p = gameState.player;
+            if (!p) return;
+
+            // Update Player Stats
+            playerStatsEl.innerHTML = `
+                <div class="text-lg text-gold font-bold">${p.name}</div>
+                <div>Level: ${p.level}</div>
+                <div>HP: <span class="${p.current_hp / p.max_hp < 0.3 ? 'text-red-500' : 'text-green-500'}">${p.current_hp}/${p.max_hp}</span></div>
+                <div>Attack: ${p.attack}</div>
+                <div>Defense: ${p.defense}</div>
+                <div>XP: ${p.experience}/${p.next_level_exp}</div>
+                <div>Gold: <span class="text-yellow-400">${p.gold}</span></div>
+                <div>Potions: ${p.potions}</div>
+            `;
+            
+            // Update Enemy Stats
+            const e = gameState.enemy;
+            enemyStatsEl.innerHTML = e ? `
+                <div class="text-lg text-red-400 font-bold">${e.name} (Lvl ${e.level})</div>
+                <div>HP: <span class="${e.current_hp / e.max_hp < 0.3 ? 'text-red-500' : 'text-green-500'}">${e.current_hp}/${e.max_hp}</span></div>
+                <div>Attack: ${e.attack}</div>
+                <div>Defense: ${e.defense}</div>
+            ` : '<div class="text-gray-500">No active enemy.</div>';
+        }
+
+        function setActions(actions) {
+            actionButtonsEl.innerHTML = '';
+            actions.forEach(({ text, handler, color, disabled = false }) => {
+                const button = document.createElement('button');
+                button.className = `action-button bg-${color}-600 text-white px-4 py-3 rounded-lg hover:bg-${color}-700 font-bold disabled:bg-gray-500 disabled:shadow-none`;
+                button.textContent = text;
+                button.disabled = disabled;
+                button.onclick = handler;
+                actionButtonsEl.appendChild(button);
+            });
+        }
+        
+        // --- Game Flow Functions ---
+
+        function startGame() {
+            let playerName = playerNameInput.value.trim();
+            if (!playerName) {
+                playerName = "Wanderer";
+            }
+            
+            // Clear startup modal
+            startModal.classList.add('hidden');
+            
+            // Initialize game state
+            gameState.player = new Player(playerName);
+            gameState.enemy = null;
+            gameState.isCombat = false;
+            
+            logOutput(`\n<span class="text-gold">*** Welcome to THE WHISPERING DEPTHS! ***</span>`, 'text-2xl font-bold');
+            logOutput(`Brave ${playerName}, your journey into the ruined temple begins...`);
+            
+            updateUI();
+            setExplorationActions();
+        }
+
+        function setExplorationActions() {
+            gameState.isCombat = false;
+            gameState.enemy = null;
+            updateUI(); // Clear enemy stats
+            setActions([
+                { text: "1. Explore", handler: () => explore(), color: 'green' },
+                { text: "2. Check Stats", handler: () => { 
+                    logOutput('\n--- Player Stats ---', 'font-bold text-lg text-blue-400');
+                    logOutput(`Name: ${gameState.player.name} (Level ${gameState.player.level})`);
+                    logOutput(`HP: ${gameState.player.current_hp}/${gameState.player.max_hp}`);
+                    logOutput(`Attack: ${gameState.player.attack} | Defense: ${gameState.player.defense}`);
+                    logOutput(`XP: ${gameState.player.experience}/${gameState.player.next_level_exp} | Gold: ${gameState.player.gold}`);
+                    logOutput(`Potions: ${gameState.player.potions}`);
+                    logOutput('--------------------', 'font-bold text-lg text-blue-400');
+                    updateUI(); 
+                }, color: 'blue' },
+                { text: "3. Use Potion", handler: () => { gameState.player.usePotion(); updateUI(); }, color: 'purple', disabled: gameState.player.potions === 0 || gameState.player.current_hp === gameState.player.max_hp },
+                { text: "4. Rest (20 Gold)", handler: () => rest(), color: 'yellow', disabled: gameState.player.gold < 20 || gameState.player.current_hp === gameState.player.max_hp },
+                { text: "5. Quit Game", handler: () => gameOver(gameState.player.name + " fled the depths."), color: 'red' },
+            ]);
+        }
+        
+        function rest() {
+             if (gameState.player.gold >= 20) {
+                gameState.player.gold -= 20;
+                gameState.player.current_hp = gameState.player.max_hp;
+                logOutput("You found a safe corner to rest. Paid 20 gold and are fully recovered!");
+                updateUI();
+                setExplorationActions();
+            } else {
+                logOutput("You need 20 gold to rest and recover fully.");
+                setExplorationActions();
+            }
+        }
+
+
+        function setCombatActions() {
+            gameState.isCombat = true;
+            updateUI();
+            setActions([
+                { text: "1. Attack", handler: () => playerTurn(), color: 'red' },
+                { text: "2. Use Potion", handler: () => {
+                    if (gameState.player.usePotion()) {
+                        updateUI();
+                        // Enemy attacks immediately after player uses item
+                        setTimeout(enemyTurn, DELAY);
+                    } else {
+                        // If potion use failed, stay on combat actions
+                        setCombatActions();
+                    }
+                }, color: 'purple', disabled: gameState.player.potions === 0 },
+            ]);
+        }
+        
+        function checkGameOver() {
+            if (!gameState.player.is_alive) {
+                gameOver(`You were defeated by the ${gameState.enemy.name}... The Whispering Depths claims another victim.`);
+                return true;
+            }
+            return false;
+        }
+
+        // --- Combat Logic ---
+        async function playerTurn() {
+            // Disable buttons during the turn sequence
+            setActions([{ text: "...", handler: () => {}, color: 'gray', disabled: true }]);
+
+            // Player attacks
+            gameState.player.attackTarget(gameState.enemy);
+            updateUI();
+
+            if (gameState.enemy.is_alive) {
+                // If enemy survives, it's their turn after a delay
+                await new Promise(resolve => setTimeout(resolve, DELAY));
+                enemyTurn();
+            } else {
+                // Enemy defeated
+                await new Promise(resolve => setTimeout(resolve, DELAY));
+                combatConclusion();
+            }
+        }
+
+        async function enemyTurn() {
+            if (checkGameOver()) return;
+
+            // Enemy attacks
+            gameState.enemy.attackTarget(gameState.player);
+            updateUI();
+
+            if (checkGameOver()) return;
+
+            // Re-enable player actions
+            await new Promise(resolve => setTimeout(resolve, DELAY));
+            setCombatActions();
+        }
+
+        function combatConclusion() {
+            const player = gameState.player;
+            const enemy = gameState.enemy;
+            
+            logOutput(`\n<span class="text-green-500">You defeated the ${enemy.name}!</span>`);
+            player.gainXP(enemy.xp_value);
+            player.gold += enemy.gold_drop;
+            logOutput(`You found <span class="text-yellow-400">${enemy.gold_drop} gold</span> pieces.`);
+            
+            gameState.enemy = null;
+            updateUI();
+            
+            // Return to exploration
+            setTimeout(setExplorationActions, DELAY * 2);
+        }
+
+        function startCombat(enemy) {
+            gameState.enemy = enemy;
+            logOutput(`\n<span class="text-lg font-bold text-red-500">A wild ${enemy.name} appears!</span>`);
+            logOutput(`It looks like a Level ${enemy.level} foe.`);
+            
+            // Initiate combat actions
+            setCombatActions();
+        }
+
+        // --- Exploration Logic ---
+        function explore() {
+            logOutput("\nYou venture deeper into the ancient ruins...");
+            
+            const playerLevel = gameState.player.level;
+            const encounterRoll = Math.floor(Math.random() * 100) + 1;
+
+            // Disable buttons during the event sequence
+            setActions([{ text: "Venture...", handler: () => {}, color: 'gray', disabled: true }]);
+            
+            setTimeout(() => {
+                if (encounterRoll <= 50) {
+                    // Enemy encounter (50% chance)
+                    const enemyLevel = playerLevel + Math.floor(Math.random() * 3) - 1; // -1 to +1
+                    const enemy = new Enemy(Math.max(1, enemyLevel));
+                    startCombat(enemy);
+                }
+                
+                else if (encounterRoll <= 75) {
+                    // Treasure chest (25% chance)
+                    const goldFound = Math.floor(Math.random() * 16) + 5; // 5 to 20
+                    gameState.player.gold += goldFound;
+                    logOutput(`\nYou found a dusty old chest! You gained <span class="text-yellow-400">${goldFound} gold</span>.`);
+                    updateUI();
+                    setExplorationActions();
+                }
+                
+                else if (encounterRoll <= 90) {
+                    // Potion found (15% chance)
+                    gameState.player.potions += 1;
+                    logOutput("You spotted a glowing flask on the ground. You gained 1 Potion!");
+                    updateUI();
+                    setExplorationActions();
+                }
+                
+                else {
+                    // Nothing happens (10% chance)
+                    logOutput("The path is quiet. You find nothing of interest.");
+                    setExplorationActions();
+                }
+            }, DELAY);
+        }
+        
+        // --- Game Over ---
+        function gameOver(message) {
+            document.getElementById('game-over-message').innerHTML = message;
+            gameOverModal.classList.remove('hidden');
+            // Disable all actions
+            setActions([]);
+        }
+
+        // Initialize on window load (waits for all elements to load)
+        window.onload = () => {
+             // Display the start modal initially
+             // Game will start when the user clicks 'Enter the Depths'
+        };
+
+    </script>
+</body>
+</html>
